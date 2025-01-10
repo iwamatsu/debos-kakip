@@ -1,0 +1,32 @@
+From b383031299ab02cc1d869adffcadfaf220a6a852 Mon Sep 17 00:00:00 2001
+From: Nobuhiro Iwamatsu <iwamatsu@nigauri.org>
+Date: Sun, 22 Dec 2024 12:20:51 +0900
+Subject: [PATCH] arm: dts: kakip: Fix PHY address for ethernet0
+
+The PHY address for ethernet0 is 3, not 0.
+This fixes to the correct PHY address.
+
+Signed-off-by: Nobuhiro Iwamatsu <iwamatsu@nigauri.org>
+---
+ arch/arm/dts/kakip-es1.dts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/dts/kakip-es1.dts b/arch/arm/dts/kakip-es1.dts
+index 7de0e2f3..535fd524 100644
+--- a/arch/arm/dts/kakip-es1.dts
++++ b/arch/arm/dts/kakip-es1.dts
+@@ -130,9 +130,9 @@
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 
+-		phy0: ethernet-phy@0 {
++		phy0: ethernet-phy@3 {
+ 			compatible = "ethernet-phy-ieee802.3-c22";
+-			reg = <0>;
++			reg = <3>;
+ 		};
+ 	};
+ };
+-- 
+2.47.2
+

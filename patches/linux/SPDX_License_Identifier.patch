@@ -1,0 +1,16 @@
+--- a/include/uapi/linux/i3c/i3cdev.h	2025-01-11 06:42:42.762665166 +0900
++++ b/include/uapi/linux/i3c/i3cdev.h	2025-01-11 06:43:08.526944476 +0900
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: GPL-2.0 */
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+ /*
+  * Copyright (c) 2019 Synopsys, Inc. and/or its affiliates.
+  *
+--- a/include/uapi/linux/i3c/device.h	2025-01-11 06:42:16.194377401 +0900
++++ b/include/uapi/linux/i3c/device.h	2025-01-11 06:42:21.186431449 +0900
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: GPL-2.0 */
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+ /*
+  * Copyright (c) 2019 Synopsys, Inc. and/or its affiliates.
+  *

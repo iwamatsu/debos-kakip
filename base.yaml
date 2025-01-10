@@ -1,0 +1,185 @@
+{{- $architecture := or .architecture "arm64" -}}
+{{- $suite := or .suite "bookworm" -}}
+{{- $image_type := or .image_type "base" -}}
+{{- $hostname := or .hostname "debian" -}}
+{{- $board_name := or .board_name "kakip" -}}
+
+{{- $image_format := or .image_format "tarball" -}}
+{{- $imagesize := or .imagesize "3GB" -}}
+{{- $filesystem := or .filesystem "ext4" -}}
+{{- $features := or .features "has_journal" -}}
+{{- $image_compression := or .image_compression "xz" -}}
+{{- $base_imagename := or .base_imagename (printf "%s-%s-%s-%s" $hostname $architecture $suite $image_type) -}}
+{{- $imagename := or .imagename (printf "%s.tar.%s" $base_imagename $image_compression) -}}
+
+{{/* linux kernel */}}
+{{- $linux_base_version := or .linux_base_version "" -}}
+{{- $linux_packagename := or .linux_packagename "" -}}
+{{- $kernel_addr_r := or .kernel_addr_r "0x48080000" -}}
+{{/* DTB */}}
+{{- $dtb_vendorname := or .dtb_vendorname "renesas" -}}
+{{- $dtb_filename := or .dtb_filename "kakip-es1.dtb" -}}
+{{- $fdt_addr_r := or .fdt_addr_r "0x48000000" -}}
+
+{{- $cache_mode := or .cache_mode "unpack" -}}
+{{- $cache_filename := or .image (printf "cache-debian-%s-%s.tar.gz" $suite $architecture) -}}
+
+{{- $debug := or .debug "ok" -}}
+
+architecture: {{ $architecture }}
+
+actions:
+{{- if eq $cache_mode "unpack" }}
+  - action: unpack
+    description: Unpack {{ $cache_filename }}
+    file: {{ $cache_filename }}
+    compression: gz
+{{- else }}
+  - action: debootstrap
+    suite: {{ $suite }}
+    components:
+      - main
+    mirror: https://deb.debian.org/debian
+    variant: minbase
+{{- if eq $cache_mode "pack" }}
+  - action: pack
+    description: Pack {{ $cache_filename }}
+    file: {{ $cache_filename }}
+    compression: gz
+{{- end }}
+{{- end }}
+
+{{- if eq $debug "ok" }}
+
+  - action: apt
+    description: Install base packages
+    recommends: false
+    packages:
+      - systemd-sysv
+      - i2c-tools
+      - u-boot-tools
+      - udev
+      - isc-dhcp-client
+      - wget
+
+  - action: run
+    description: Set root account
+    chroot: true
+    command: echo "root:root" | chpasswd
+
+  - action: run
+    description: Set host name
+    chroot: true
+    command: echo {{ $hostname }} > /etc/hostname
+
+  - action: overlay
+    description: "Copy linux kernel deb package"
+    source: overlay/linux
+
+  - action: run
+    description: "Installing the linux kernel package into the filesystem"
+    chroot: true
+    command: apt-get -y install /opt/{{ $linux_packagename }} && rm /opt/{{ $linux_packagename }}
+
+  - action: overlay
+    description: "Install U-boot script"
+    source: overlay/u-boot
+
+  - action: run
+    description: "Generate boot.scr"
+    chroot: true
+    command: |
+      sed -i \
+        -e "s@#KERNEL_ADDR_R#@{{ $kernel_addr_r }}@g" \
+        -e "s@#LINUX_BASE_VERSION#@{{ $linux_base_version }}@g" \
+        -e "s@#FDT_ADDR_R#@{{ $fdt_addr_r }}@g" \
+        -e "s@#KERNEL_DTB#@{{ $dtb_vendorname }}/{{ $dtb_filename }}@g" \
+        /boot/boot.txt
+      mkimage -T script -A arm -O linux -C none -d /boot/boot.txt /boot/boot.scr
+
+  - action: run
+    chroot: true
+    command: mkdir /boot/firmware
+
+{{- end }}
+
+{{ if eq $image_format "tarball" }}
+
+  - action: pack
+    file: {{ $imagename }}
+    compression: {{ $image_compression }}
+
+{{ else if eq $image_format "raw" }}
+
+{{- $imagename = printf "%s.img" $base_imagename }}
+
+  - action: image-partition
+    description: "Creating partitions"
+    imagename: {{ $imagename }}
+    imagesize: {{ $imagesize }}
+    partitiontype: msdos
+    mountpoints:
+      - mountpoint: /
+        partition: root
+        options: [ rw, relatime, errors=remount-ro ]
+    partitions:
+      - name: root
+        fs: {{ $filesystem }}
+        start: 2048KiB
+        end: 100%
+        flags: [ boot ]
+        features: [ {{ $features }} ]
+
+  - action: overlay
+    description: "Overlay firmware directory"
+    source: overlay/bootloader
+
+  - action: raw
+    description: "Flash header0"
+    origin: filesystem
+    offset: {{ sector 0 }}
+    source: /opt/header0.bin
+  - action: raw
+    description: "Flash header1 (1)"
+    origin: filesystem
+    offset: {{ sector 1 }}
+    source: /opt/header1.bin
+  - action: raw
+    description: "Flash header1 (2)"
+    origin: filesystem
+    offset: {{ sector 2 }}
+    source: /opt/header1.bin
+  - action: raw
+    description: "Flash header1 (3)"
+    origin: filesystem
+    offset: {{ sector 3 }}
+    source: /opt/header1.bin
+  - action: raw
+    description: "Flash BL2"
+    origin: filesystem
+    offset: {{ sector 8 }}
+    source: /opt/bl2.bin
+  - action: raw
+    description: "Flash FIP"
+    origin: filesystem
+    offset: {{ sector 768 }}
+    source: /opt/fip.bin
+
+  - action: run
+    description: "Remove firmware binary"
+    chroot: true
+    command: rm -rf /opt/*.bin
+
+  - action: filesystem-deploy
+    description: "Deploying filesystem onto image"
+
+  - action: run
+    description: "Create a bmap file"
+    postprocess: true
+    command: cd ${ARTIFACTDIR} && bmaptool create {{ $imagename }} > {{ $imagename }}.bmap
+
+  - action: run
+    description: "Compress {{ $imagename }}.img"
+    postprocess: true
+    command: cd ${ARTIFACTDIR} && gzip -f {{ $imagename }}
+{{ end }}

@@ -1,0 +1,63 @@
+--- a/drivers/drp/lock_drp.c	2025-01-11 05:41:27.845973828 +0900
++++ b/drivers/drp/lock_drp.c	2025-01-11 05:41:41.966149746 +0900
+@@ -16,6 +16,42 @@
+ #include <stddef.h>
+ #include "lock_drp.h"
+ 
++static unsigned long long __atomic_or(unsigned long long *target, unsigned long long mask)
++{
++	unsigned long long old_val, new_val;
++	unsigned int tmp;
++
++	__asm__ __volatile__(
++		"1: ldxr %0, [%2]\n"
++		"orr %1, %0, %3\n"
++		"stxr %w2, %1, [%4]\n"
++		"cbnz %w2, 1b\n"
++		: "=&r" (old_val), "=&r" (new_val), "=&r" (tmp)
++		: "r" (mask), "r" (target)
++		: "memory"
++	);
++
++	return old_val;
++}
++
++static  unsigned long long __atomic_and(unsigned long long *target, unsigned long long mask)
++{
++	unsigned long long old_val, new_val;
++	unsigned int tmp;
++
++	__asm__ __volatile__(
++		"1: ldxr %0, [%2]\n"
++		"and %1, %0, %3\n"
++		"stxr %w2, %1, [%4]\n"
++		"cbnz %w2, 1b\n"
++		: "=&r" (old_val), "=&r" (new_val), "=&r" (tmp)
++		: "r" (mask), "r" (target)
++		: "memory"
++	);
++
++	return old_val;
++}
++
+ int lock_drp(unsigned long long *addr, unsigned int num)
+ {
+ 	int result = 0;
+@@ -29,7 +65,7 @@
+ 	else
+ 	{
+ 		/* set the specified bit. */
+-		old_value = __sync_fetch_and_or(addr, (1uLL << num));
++		old_value = __atomic_or(addr, (1uLL << num));
+ 		/* Check previous value. */
+ 		if ((old_value & (1uLL << num)) != 0)
+ 		{
+@@ -52,7 +88,7 @@
+ 	else
+ 	{
+ 		/* Clear the specified bit. */
+-		(void)__sync_fetch_and_and(addr, ~(1uLL << num));
++		(void)__atomic_and(addr, ~(1uLL << num));
+ 	}
+ 	return result;
+ }
