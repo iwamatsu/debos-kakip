@@ -35,7 +35,7 @@ LINUX_BIN := overlay/linux/opt/$(LINUX_DEB_PKGNAME)
 
 all: build-fip build-linux build-image
 
-build-image:
+build-image: build-fip build-linux
 	@test -d $(BOARD) || mkdir $(BOARD) 
 	@test -f overlay/bootloader/opt/header0.bin || \
 		(echo 'no header0.bin file, please run scripts/extract_bibary.sh.'; exit 1)
